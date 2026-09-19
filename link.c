@@ -1,11 +1,10 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <inttypes.h>
 #include "link.h"
 
 int build_frame(frame *f, const uint8_t *source, const uint8_t *destination, uint16_t payload_size, const uint8_t *payload) {
-	if (payload_size > MAX_PAYLOAD) return 1;
+	if (payload_size > LINK_MTU) return 1;
 
 	f->preamble[0] = DEFAULT_PREAMBLE_HI;
 	f->preamble[1] = DEFAULT_PREAMBLE_LO;
@@ -19,7 +18,7 @@ int build_frame(frame *f, const uint8_t *source, const uint8_t *destination, uin
 
 size_t serialize_frame(const frame *f, uint8_t *buf, size_t buf_size) {
 	size_t needed = FRAME_HEADER_LENGTH + f->payload_size;
-	if (needed > buf_size) return 0;
+	if (buf_size < needed) return 0;
 
 	size_t index = 0;
 	// Preamble
@@ -69,7 +68,7 @@ int deserialize_frame(frame *f, const uint8_t *incoming, size_t incoming_size) {
 	
 	// Payload Length
 	f->payload_size = (uint16_t) ((*(incoming+index) << 8) | *(incoming+index+1));
-	if (f->payload_size>MAX_PAYLOAD) return 1;
+	if (f->payload_size>LINK_MTU) return 1;
 	index+=2;
 	
 	//Payload
