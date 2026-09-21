@@ -69,3 +69,11 @@ int deserialize_packet(packet *p, const uint8_t *incoming, size_t incoming_size)
 
 	return 0;
 }
+
+int send_packet(uint8_t protocol, const uint8_t *source, const uint8_t *destination, uint16_t payload_size, const uint8_t *payload) {
+	// Build the packet with source (its own address), destination, protocol, TTL
+	// Decide the next hop — AND the destination with the netmask, compare against its own network. Same segment means the next hop is the destination itself; different means the next hop is the gateway
+	// Resolve that next hop to a MAC via ARP
+	// Serialise the packet into a byte buffer
+	// send_frame(iface, LINK_TYPE_PACKET, next_hop_mac, buf, len)
+}
