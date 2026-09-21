@@ -1,3 +1,4 @@
 nullnet-vision.md
 *.o
 *.out
+*.dSYM/

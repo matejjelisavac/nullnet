@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include "wire.h"
 #include <string.h>
+#include <stdio.h>
 
 #define HUB_MAX_MESSAGE 2048
 #define HUB_MAX_PORTS 16
@@ -21,7 +22,8 @@ int main(int argc, char *argv[]) {
 	size_t active_ports = 0;
 
 	// TODO argument checking
-	char *path = argv[1]; // Actual path
+	// char *path = argv[1]; // Actual path
+	char *path = "/tmp/nullnet/hub";
 	struct sockaddr_un s = {0};
 	s.sun_family = AF_UNIX;
 	strncpy(s.sun_path, path, sizeof s.sun_path - 1);
@@ -62,6 +64,7 @@ int main(int argc, char *argv[]) {
 		// Relay
 		else {
 			size_t skip = find_port(connections, &sender, active_ports);
+			printf("Received and retransmitting\n");
 			for (size_t i = 0; i < active_ports; i++) {
 				if (i == skip) continue;
 				sendto(socket_fd, buf, received, 0, (struct sockaddr *) (connections+i), sizeof connections[i]);
