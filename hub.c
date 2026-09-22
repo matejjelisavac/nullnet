@@ -3,7 +3,7 @@
 #include <sys/un.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#include "wire.h"
+#include "src/wire.h"
 #include <string.h>
 #include <stdio.h>
 
@@ -63,7 +63,7 @@ int main(int argc, char *argv[]) {
 
 		// Relay
 		else {
-			size_t skip = find_port(connections, &sender, active_ports);
+			int skip = find_port(connections, &sender, active_ports);
 			printf("Received and retransmitting\n");
 			for (size_t i = 0; i < active_ports; i++) {
 				if (i == skip) continue;
