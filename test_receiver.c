@@ -12,7 +12,9 @@ int main(int argc, char *argv[]) {
 	link_init(&iface, self, "/tmp/nullnet/test-receiver", "/tmp/nullnet/hub");
 
 	frame f;
-	recv_frame(&iface, &f);
-	printf("%u\n", f.payload_size);
-	
+	while (1) {
+		recv_frame(&iface, &f);
+		printf("%u\n", f.payload_size);
+	}
+
 }

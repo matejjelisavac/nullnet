@@ -2,6 +2,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <string.h>
+#include <unistd.h>
 
 int main(int argc, char *argv[]) {
 
@@ -17,6 +18,9 @@ int main(int argc, char *argv[]) {
 
 	interface iface;
 	link_init(&iface, from, "/tmp/nullnet/test-sender", "/tmp/nullnet/hub");
-	send_frame(&iface, LINK_TYPE_PACKET, to, payload_size, payload);
-	
+
+	while (1) {
+		send_frame(&iface, LINK_TYPE_PACKET, to, payload_size, payload);
+		sleep(5);
+	}
 }

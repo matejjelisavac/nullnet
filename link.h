@@ -15,7 +15,7 @@
 #define LINK_PREAMBLE_LO 0xAB
 
 #define LINK_TYPE_PACKET 0x01
-#define LINK_TYPE_ARP 0x02
+#define LINK_TYPE_ARP    0x02
 #define LINK_TYPE_LENGTH 1
 
 // Bytes needed for a MAC Address in nullnet
@@ -26,7 +26,7 @@
 // Maximum payload length for a frame (bytes). Header allows up to 65535 but should not exceed 1500.
 #define LINK_MTU 1500
 
-#define BROADCAST_MAC_ADDRESS {0xFF, 0xFF, 0xFF, 0xFF}
+#define LINK_BROADCAST_MAC {0xFF, 0xFF, 0xFF, 0xFF}
 
 #define LINK_OK        0
 #define LINK_ERROR     1

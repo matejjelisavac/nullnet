@@ -107,8 +107,8 @@ int recv_frame(interface *iface, frame *f) {
 	if (incoming_size == -1) return LINK_ERROR;
 
 	if (deserialize_frame(f, buf, incoming_size) != 0) return LINK_ERROR;
-	uint8_t broadcast[LINK_MAC_LENGTH] = BROADCAST_MAC_ADDRESS;
-	if (memcmp(f->destination, iface->mac_address, LINK_MAC_LENGTH) != 0 && memcmp(f->destination, broadcast, LINK_MAC_LENGTH) != 0) return LINK_NOT_MINE;
+	uint8_t broadcast_mac[LINK_MAC_LENGTH] = LINK_BROADCAST_MAC;
+	if (memcmp(f->destination, iface->mac_address, LINK_MAC_LENGTH) != 0 && memcmp(f->destination, broadcast_mac, LINK_MAC_LENGTH) != 0) return LINK_NOT_MINE;
 
 	return LINK_OK;
 }
