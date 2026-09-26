@@ -65,7 +65,7 @@ int main(int argc, char *argv[]) {
 		else {
 			int skip = find_port(connections, &sender, active_ports);
 			printf("Received and retransmitting\n");
-			for (size_t i = 0; i < active_ports; i++) {
+			for (int i = 0; i < active_ports; i++) {
 				if (i == skip) continue;
 				sendto(socket_fd, buf, received, 0, (struct sockaddr *) (connections+i), sizeof connections[i]);
 			}

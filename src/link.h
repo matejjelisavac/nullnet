@@ -51,12 +51,6 @@ typedef struct {
 	struct sockaddr_un hub;
 } interface;
 
-int build_frame(frame *f, uint8_t type, const uint8_t *source, const uint8_t *destination, uint16_t payload_size, const uint8_t *payload);
-
-size_t serialize_frame(const frame *f, uint8_t *buf, size_t buf_size);
-
-int deserialize_frame(frame *f, const uint8_t *incoming, size_t incoming_size);
-
 int send_frame(interface *iface, uint8_t type, const uint8_t *destination, uint16_t payload_size, const uint8_t *payload);
 
 int recv_frame(interface *iface, frame *f);

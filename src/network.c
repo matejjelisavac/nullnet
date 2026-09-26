@@ -1,6 +1,5 @@
-#include <string.h>
-#include <stdbool.h>
 #include "network.h"
+#include "arp.h"
 
 int build_packet(packet *p, uint8_t protocol, const uint8_t *source, const uint8_t *destination, uint16_t payload_size, const uint8_t *payload) {
 	if (payload_size > NET_MTU) return 1;
@@ -42,15 +41,17 @@ size_t serialize_packet(const packet *p, uint8_t *buf, size_t buf_size) {
 }
 
 int deserialize_packet(packet *p, const uint8_t *incoming, size_t incoming_size) {
-	if (incoming_size < NET_HEADER_LENGTH) return 1;
+	if (incoming_size < NET_HEADER_LENGTH) return NET_ERROR;
 
 	size_t index = 0;
 
 	// TTL
-	p->ttl = *(incoming+index++);
+	p->ttl = *(incoming+index);
+	index+=NET_TTL_LENGTH;
 	// Protocol
-	if (*(incoming+index) != NET_PROTOCOL_UDP && *(incoming+index) != NET_PROTOCOL_TCP) return 1;
-	p->protocol = *(incoming+index++);
+	if (*(incoming+index) != NET_PROTOCOL_UDP && *(incoming+index) != NET_PROTOCOL_TCP) return NET_ERROR;
+	p->protocol = *(incoming+index);
+	index+=NET_PROTOCOL_LENGTH;
 	// Source
 	memcpy(p->source, incoming+index, NET_IP_LENGTH);
 	index+=NET_IP_LENGTH;
@@ -60,19 +61,19 @@ int deserialize_packet(packet *p, const uint8_t *incoming, size_t incoming_size)
 	// Payload size
 	p->payload_size = (uint16_t)((incoming[index] << 8) | incoming[index+1]);
 	index += NET_PAYLOAD_SIZE_LENGTH;
-	if (p->payload_size > NET_MTU) return 1;
+	if (p->payload_size > NET_MTU) return NET_ERROR;
 	
 	// Payload
-	if (incoming_size != NET_HEADER_LENGTH + p->payload_size) return 1;
+	if (incoming_size != NET_HEADER_LENGTH + p->payload_size) return NET_ERROR;
 	memcpy(p->payload, incoming+index, p->payload_size);
 	index+=p->payload_size;
 
-	return 0;
+	return NET_OK;
 }
 
-bool ip_in_subnet(uint8_t *source, uint8_t *destination, uint8_t *netmask) {
+bool ip_in_subnet(const uint8_t *local, const uint8_t *target, const uint8_t *netmask) {
 	for (size_t i = 0; i < NET_IP_LENGTH; i++) {
-		if ((destination[i] & netmask[i]) != (source[i] & netmask[i])) {
+		if ((target[i] & netmask[i]) != (local[i] & netmask[i])) {
 			return false;
 		}
 	}
@@ -80,8 +81,12 @@ bool ip_in_subnet(uint8_t *source, uint8_t *destination, uint8_t *netmask) {
 }
 
 
-int net_init(net_interface *net_iface, interface *iface, uint8_t *ip_address, uint8_t *netmask, uint8_t *gateway) {
-	// TODO WIP.
+int net_init(net_interface *net_iface, interface *iface, const uint8_t *ip_address, const uint8_t *netmask, const uint8_t *gateway) {
+	net_iface->iface = iface;
+	memcpy(net_iface->ip_address, ip_address, NET_IP_LENGTH);
+	memcpy(net_iface->netmask, netmask, NET_IP_LENGTH);
+	memcpy(net_iface->gateway, gateway, NET_IP_LENGTH);
+	return NET_OK;
 }
 
 int send_packet(net_interface *net_iface, uint8_t protocol, const uint8_t *destination, uint16_t payload_size, const uint8_t *payload) {
@@ -98,14 +103,12 @@ int send_packet(net_interface *net_iface, uint8_t protocol, const uint8_t *desti
 	uint8_t next_hop_mac[LINK_MAC_LENGTH];
 
 	// ARP for the MAC address of the next hop
+	if (arp_lookup(net_iface, next_hop_ip, next_hop_mac) == ARP_NOT_FOUND) { // Only returns Found or Not Found
+		if (arp_request(net_iface, next_hop_ip) != ARP_PENDING) return NET_ERROR; // Only returns pending or error
+		return NET_PENDING; // Tell the caller the try failed. TODO: Eventually will queue the packet and send it on the ARP reply instead of dropping it.
+	}
 
-		// TODO ARP lookup
-			// 	if found, continue
-			//  otherwise, arp_request, return some pending value to caller
-			// 		caller will retry later? either with autoqueue or on-arp-response with a table ADDRESS | PENDING PACKET
-		// This will work for both host IPs and router IPs (decided already in next_hop_ip)
-
-	// Once MAC resolved, build and serialize packet, send to L2
+	// On MAC resolved, build and serialize packet, send to L2
 	packet p;
 	if (build_packet(&p, protocol, net_iface->ip_address, destination, payload_size, payload) != NET_OK) return NET_ERROR;
 	uint8_t buf[NET_HEADER_LENGTH + NET_MTU];
@@ -113,5 +116,13 @@ int send_packet(net_interface *net_iface, uint8_t protocol, const uint8_t *desti
 	if (p_len == 0) return NET_ERROR;
 
 	if (send_frame(net_iface->iface, LINK_TYPE_PACKET, next_hop_mac, p_len, buf) != LINK_OK) return NET_ERROR;
+	return NET_OK;
+}
+
+int recv_packet(net_interface *net_iface, uint8_t *payload, size_t payload_size, packet *p) {
+	// Eventually will need broadcast acceptance for DHCP.
+	if (deserialize_packet(p, payload, payload_size) != NET_OK) return NET_ERROR;
+	if (memcmp(p->destination, net_iface->ip_address, NET_IP_LENGTH) != 0) return NET_NOT_MINE; //Let caller decide. Useful for routers.
+	// TTL check wi1ll live in router design.
 	return NET_OK;
 }
