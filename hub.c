@@ -22,8 +22,11 @@ int main(int argc, char *argv[]) {
 	size_t active_ports = 0;
 
 	// TODO argument checking
-	// char *path = argv[1]; // Actual path
-	char *path = "/tmp/nullnet/hub";
+	if (argc != 2) {
+		fprintf(stderr, "usage: %s <hub-path>\n", argv[0]);
+		return 1;
+	}
+	char *path = argv[1]; // Actual path
 	struct sockaddr_un s = {0};
 	s.sun_family = AF_UNIX;
 	strncpy(s.sun_path, path, sizeof s.sun_path - 1);
@@ -65,8 +68,8 @@ int main(int argc, char *argv[]) {
 		else {
 			int skip = find_port(connections, &sender, active_ports);
 			printf("Received and retransmitting\n");
-			for (int i = 0; i < active_ports; i++) {
-				if (i == skip) continue;
+			for (size_t i = 0; i < active_ports; i++) {
+				if ((int) i == skip) continue;
 				sendto(socket_fd, buf, received, 0, (struct sockaddr *) (connections+i), sizeof connections[i]);
 			}
 			
