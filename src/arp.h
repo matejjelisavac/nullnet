@@ -38,8 +38,6 @@ int arp_lookup(net_interface *net_iface, const uint8_t *destination_ip, uint8_t 
 
 int arp_request(net_interface *net_iface, const uint8_t *destination_ip);
 
-int arp_response(net_interface *net_iface, const uint8_t *destination_ip, const uint8_t *destination_mac);
-
 int arp_handle(net_interface *net_iface, uint8_t *payload, size_t payload_size);
 
 #endif

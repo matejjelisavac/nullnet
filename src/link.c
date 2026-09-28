@@ -4,6 +4,7 @@
 #include <sys/un.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <poll.h>
 #include "wire.h"
 #include "arp.h"
 
@@ -123,8 +124,8 @@ int link_init(interface *iface, uint8_t mac_address[LINK_MAC_LENGTH], char *own_
 	unlink(own_path);
 	int socket_fd = socket(AF_UNIX, SOCK_DGRAM, 0);
 	if (socket_fd == -1) return LINK_ERROR; 
-	if (bind(iface->socket_fd, (struct sockaddr *) &s, sizeof s) != 0) return LINK_ERROR;
 	iface->socket_fd = socket_fd;
+	if (bind(iface->socket_fd, (struct sockaddr *) &s, sizeof s) != 0) return LINK_ERROR;
 
 	// Hub Socket
 	memset(&iface->hub, 0, sizeof(struct sockaddr_un));
@@ -139,4 +140,18 @@ int link_init(interface *iface, uint8_t mac_address[LINK_MAC_LENGTH], char *own_
 	if (sendto(iface->socket_fd, &hello, WIRE_MSG_LENGTH, 0, (struct sockaddr *) &(iface->hub), sizeof iface->hub) == -1) return LINK_ERROR;
 
 	return LINK_OK;
+}
+
+int link_await(interface *iface, int timeout_ms) {
+	// if ready, LINK_READY, else LINK_TIMEOUT
+
+	struct pollfd pfd = {
+		.fd = iface->socket_fd,
+		.events = POLLIN
+	};
+	int res = poll(&pfd, 1, timeout_ms);
+	if (res == -1) return LINK_ERROR;
+	if (res == 0) return LINK_TIMEOUT;
+	if (pfd.revents & POLLIN) return LINK_READY; //bitwise operation for nonzero.
+	return LINK_ERROR;
 }

@@ -32,6 +32,9 @@
 #define LINK_ERROR     1
 #define LINK_NOT_MINE  2
 
+#define LINK_READY   3
+#define LINK_TIMEOUT 4
+
 // Expected length of a frame header. The sum of all header fields' lengths (preamble, src, dst, payload size).
 #define LINK_HEADER_LENGTH (LINK_PREAMBLE_LENGTH + LINK_TYPE_LENGTH + 2 * LINK_MAC_LENGTH + LINK_PAYLOAD_SIZE_LENGTH)
 
@@ -56,5 +59,7 @@ int send_frame(interface *iface, uint8_t type, const uint8_t *destination, uint1
 int recv_frame(interface *iface, frame *f);
 
 int link_init(interface *iface, uint8_t mac_address[LINK_MAC_LENGTH], char *own_path, char *hub_path);
+
+int link_await(interface *iface, int timeout_ms);
 
 #endif
