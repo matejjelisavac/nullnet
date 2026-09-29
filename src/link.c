@@ -155,3 +155,24 @@ int link_await(interface *iface, int timeout_ms) {
 	if (pfd.revents & POLLIN) return LINK_READY; //bitwise operation for nonzero.
 	return LINK_ERROR;
 }
+
+int link_await_many(const interface *ifaces, size_t ifaces_size, int timeout_ms, size_t *ready_index) {
+	// No count check intentional, but should be documented.
+	struct pollfd pfds[ifaces_size];
+	for (size_t i = 0; i < ifaces_size; i++) {
+		pfds[i].events = POLLIN;
+		pfds[i].fd = ifaces[i].socket_fd;
+	}
+	
+	int res = poll(pfds, ifaces_size, timeout_ms);
+	if (res == -1) return LINK_ERROR;
+	if (res == 0) return LINK_TIMEOUT;
+
+	for (size_t i = 0; i < ifaces_size; i++) {
+		if (pfds[i].revents & POLLIN) {
+			*ready_index = i;
+			return LINK_READY;
+		}
+	}
+	return LINK_ERROR;
+}

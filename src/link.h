@@ -62,4 +62,6 @@ int link_init(interface *iface, uint8_t mac_address[LINK_MAC_LENGTH], char *own_
 
 int link_await(interface *iface, int timeout_ms);
 
+int link_await_many(const interface *ifaces, size_t ifaces_size, int timeout_ms, size_t *ready_index);
+
 #endif

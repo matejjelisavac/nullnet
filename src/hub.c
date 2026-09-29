@@ -3,7 +3,7 @@
 #include <sys/un.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#include "src/wire.h"
+#include "wire.h"
 #include <string.h>
 #include <stdio.h>
 

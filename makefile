@@ -1,19 +1,22 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -g -Isrc
 
-STACK = src/link.c src/network.c src/arp.c
-HEADERS = src/link.h src/network.h src/arp.h src/wire.h
+STACK = src/link.c src/network.c src/arp.c src/utils.c
+HEADERS = src/link.h src/network.h src/arp.h src/wire.h src/utils.h
 
 .PHONY: all clean
 
-all: hub host
+all: hub host router
 
-hub: hub.c src/wire.h
-	$(CC) $(CFLAGS) hub.c -o $@
+hub: src/hub.c src/wire.h
+	$(CC) $(CFLAGS) src/hub.c -o $@
 
 host: src/host.c $(STACK) $(HEADERS)
 	$(CC) $(CFLAGS) src/host.c $(STACK) -o $@
 
+router: src/router.c $(STACK) $(HEADERS)
+	$(CC) $(CFLAGS) src/router.c $(STACK) -o $@
+
 clean:
-	rm -f hub host *.o
+	rm -f hub host router *.o
 	rm -rf *.dSYM

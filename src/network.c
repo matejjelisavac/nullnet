@@ -1,10 +1,10 @@
 #include "network.h"
 #include "arp.h"
 
-int build_packet(packet *p, uint8_t protocol, const uint8_t *source, const uint8_t *destination, uint16_t payload_size, const uint8_t *payload) {
+int build_packet(packet *p, uint8_t ttl, uint8_t protocol, const uint8_t *source, const uint8_t *destination, uint16_t payload_size, const uint8_t *payload) {
 	if (payload_size > NET_MTU) return 1;
 	if (protocol != NET_PROTOCOL_UDP && protocol != NET_PROTOCOL_TCP) return NET_ERROR;
-	p->ttl = NET_TTL;
+	p->ttl = ttl;
 	p->protocol = protocol;
 	memcpy(p->source, source, NET_IP_LENGTH);
 	memcpy(p->destination, destination, NET_IP_LENGTH);
@@ -85,36 +85,74 @@ int net_init(net_interface *net_iface, interface *iface, const uint8_t *ip_addre
 	net_iface->iface = iface;
 	memcpy(net_iface->ip_address, ip_address, NET_IP_LENGTH);
 	memcpy(net_iface->netmask, netmask, NET_IP_LENGTH);
-	memcpy(net_iface->gateway, gateway, NET_IP_LENGTH);
+	// Currently, net_ifaces act doubly as a single entry in a routing table.
+	// Eventually, the gateway field will disappear once hosts implment a routing table for it.
+	// This will happen once routers require routing tables.
+	if (gateway == NULL) {
+		memset(net_iface->gateway, 0, NET_IP_LENGTH);
+	}
+	else {
+		memcpy(net_iface->gateway, gateway, NET_IP_LENGTH);
+	} 
 	return NET_OK;
 }
 
-int send_packet(net_interface *net_iface, uint8_t protocol, const uint8_t *destination, uint16_t payload_size, const uint8_t *payload) {
-
-	// Decide next hop (either in this subnet, or to router)
-	uint8_t next_hop_ip[NET_IP_LENGTH];
-	if (!ip_in_subnet(net_iface->ip_address, destination, net_iface->netmask)) {
+int resolve_next_hop_ip(uint8_t *next_hop_ip, const net_interface *net_iface, const uint8_t *destination_ip) {
+	if (!ip_in_subnet(net_iface->ip_address, destination_ip, net_iface->netmask)) {
+		static const uint8_t no_gateway[NET_IP_LENGTH] = {0}; //Workaround as net_iface is pre-routing-table
+		if (memcmp(net_iface->gateway, no_gateway, NET_IP_LENGTH) == 0) return NET_ERROR;
 		memcpy(next_hop_ip, net_iface->gateway, NET_IP_LENGTH);
 	}
 	else {
-		memcpy(next_hop_ip, destination, NET_IP_LENGTH);
+		memcpy(next_hop_ip, destination_ip, NET_IP_LENGTH);
 	}
+	return NET_OK;
+}
 
-	uint8_t next_hop_mac[LINK_MAC_LENGTH];
-
+int resolve_next_hop_mac(uint8_t *next_hop_mac, net_interface *net_iface, const uint8_t *next_hop_ip) {
 	// ARP for the MAC address of the next hop
 	if (arp_lookup(net_iface, next_hop_ip, next_hop_mac) == ARP_NOT_FOUND) { // Only returns Found or Not Found
 		if (arp_request(net_iface, next_hop_ip) != ARP_PENDING) return NET_ERROR; // Only returns pending or error
 		return NET_PENDING; // Tell the caller the try failed. TODO: Eventually will queue the packet and send it on the ARP reply instead of dropping it.
 	}
+	return NET_OK;
+}
 
-	// On MAC resolved, build and serialize packet, send to L2
+int send_packet(net_interface *net_iface, uint8_t ttl, uint8_t protocol, const uint8_t *destination, uint16_t payload_size, const uint8_t *payload) {
+	
+	// Decide next hop (either in this subnet, or to router)
+	uint8_t next_hop_ip[NET_IP_LENGTH];
+	if (resolve_next_hop_ip(next_hop_ip, net_iface, destination) != NET_OK) return NET_ERROR;
+	
+	uint8_t next_hop_mac[LINK_MAC_LENGTH];
+	int res = resolve_next_hop_mac(next_hop_mac, net_iface, next_hop_ip);
+	if (res == NET_PENDING) return NET_PENDING;
+	if (res == NET_ERROR) return NET_ERROR;
+
+	// If MAC found, build and serialize packet, send to L2
 	packet p;
-	if (build_packet(&p, protocol, net_iface->ip_address, destination, payload_size, payload) != NET_OK) return NET_ERROR;
+	if (build_packet(&p, protocol, ttl, net_iface->ip_address, destination, payload_size, payload) != NET_OK) return NET_ERROR;
 	uint8_t buf[NET_HEADER_LENGTH + NET_MTU];
 	size_t p_len = serialize_packet(&p, buf, sizeof buf);
 	if (p_len == 0) return NET_ERROR;
 
+	if (send_frame(net_iface->iface, LINK_TYPE_PACKET, next_hop_mac, p_len, buf) != LINK_OK) return NET_ERROR;
+	return NET_OK;
+}
+
+int forward_packet(net_interface *net_iface, packet *p) {
+	uint8_t next_hop_ip[NET_IP_LENGTH];
+	if (resolve_next_hop_ip(next_hop_ip, net_iface, p->destination) != NET_OK) return NET_ERROR;
+	
+	uint8_t next_hop_mac[LINK_MAC_LENGTH];
+	int res = resolve_next_hop_mac(next_hop_mac, net_iface, next_hop_ip);
+	if (res == NET_PENDING) return NET_PENDING;
+	if (res == NET_ERROR) return NET_ERROR;
+
+	p->ttl--;
+	uint8_t buf[NET_HEADER_LENGTH + NET_MTU];
+	size_t p_len = serialize_packet(p, buf, sizeof buf);
+	if (p_len == 0) return NET_ERROR;
 	if (send_frame(net_iface->iface, LINK_TYPE_PACKET, next_hop_mac, p_len, buf) != LINK_OK) return NET_ERROR;
 	return NET_OK;
 }

@@ -56,7 +56,9 @@ typedef struct {
 
 int net_init(net_interface *net_iface, interface *iface, const uint8_t *ip_address, const uint8_t *netmask, const uint8_t *gateway);
 
-int send_packet(net_interface *net_iface, uint8_t protocol, const uint8_t *destination, uint16_t payload_size, const uint8_t *payload);
+int send_packet(net_interface *net_iface, uint8_t ttl, uint8_t protocol, const uint8_t *destination, uint16_t payload_size, const uint8_t *payload);
+
+int forward_packet(net_interface *net_iface, packet *p);
 
 int recv_packet(net_interface *net_iface, uint8_t *payload, size_t payload_size, packet *p);
 
