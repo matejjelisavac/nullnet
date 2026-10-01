@@ -3,7 +3,8 @@
 
 #include "network.h"
 #include "link.h"
-#include <time.h>
+#include <stdint.h>
+#include <stddef.h>
 
 #define ARP_REQUEST 0x01
 #define ARP_RESPONSE 0x02
@@ -19,8 +20,6 @@
 
 #define ARP_MSG_LENGTH (ARP_OPERATION_LENGTH + LINK_MAC_LENGTH + 2 * NET_IP_LENGTH)
 
-#define ARP_CACHE_SIZE 32
-
 // Time to expire, in seconds
 #define ARP_CACHE_EXPIRY 30
 
@@ -31,10 +30,19 @@ typedef struct {
 	uint8_t destination_ip[NET_IP_LENGTH];
 } arp_msg;
 
-#include "arp.h"
-#include <string.h>
+int build_arp(arp_msg *a, uint8_t operation, const uint8_t *source_mac, const uint8_t *source_ip, const uint8_t *destination_ip);
 
-int arp_lookup(net_interface *net_iface, const uint8_t *destination_ip, uint8_t *destination_mac_buf);
+size_t serialize_arp(const arp_msg *a, uint8_t *buf, size_t buf_size);
+
+int deserialize_arp(arp_msg *a, const uint8_t *incoming, size_t incoming_size);
+
+void filter_stale_cache(arp_entry *cache, size_t *cache_size);
+
+void cache_arp(net_interface *net_iface, const uint8_t *incoming_ip, const uint8_t *incoming_mac);
+
+int arp_response(net_interface *net_iface, const uint8_t *destination_ip, const uint8_t *destination_mac);
+
+int arp_lookup(net_interface *net_iface, uint8_t *destination_mac_buf, const uint8_t *destination_ip);
 
 int arp_request(net_interface *net_iface, const uint8_t *destination_ip);
 

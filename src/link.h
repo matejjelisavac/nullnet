@@ -2,7 +2,7 @@
 #define LINK_H
 
 #include <stdint.h>
-#include <stdio.h>
+#include <stddef.h>
 #include <sys/un.h>
 
 // Preamble: sanity check for incoming frames. Magic number by protocol design. 2 bytes
@@ -54,7 +54,13 @@ typedef struct {
 	struct sockaddr_un hub;
 } interface;
 
-int send_frame(interface *iface, uint8_t type, const uint8_t *destination, uint16_t payload_size, const uint8_t *payload);
+int build_frame(frame *f, uint8_t type, const uint8_t *source, const uint8_t *destination, const uint8_t *payload, uint16_t payload_size);
+
+size_t serialize_frame(const frame *f, uint8_t *buf, size_t buf_size);
+
+int deserialize_frame(frame *f, const uint8_t *incoming, size_t incoming_size);
+
+int send_frame(interface *iface, uint8_t type, const uint8_t *destination, const uint8_t *payload, uint16_t payload_size);
 
 int recv_frame(interface *iface, frame *f);
 

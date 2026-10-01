@@ -1,8 +1,12 @@
 #include <stdio.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <unistd.h>
 #include "link.h"
 #include "network.h"
 #include "arp.h"
 #include "utils.h"
+
 int print_usage(char *prog_name) {
 	fprintf(stderr, "usage: %s <own-path> <hub-path> <mac> <ip> <netmask> <gateway> <destination-ip>\n", prog_name);
 	return 1;
@@ -38,34 +42,27 @@ int main(int argc, char *argv[]) {
 	uint8_t payload[] = {0xAA, 0xAA, 0xAA};
 	
 	int tries = 0;
-	int res = send_packet(&net_iface, NET_TTL, NET_PROTOCOL_UDP, destination, payload_size, payload);
-
+	int res = 0;
 	while (true) {
-		if (res == NET_ERROR) return 1;
-		if (link_await(&iface, TIMEOUT_MS) == LINK_READY) {
-			packet p;
-			int receive = get_packet(&p, &net_iface); // fills the ARP cache as a side effect
-			if (receive == UTIL_RECEIVED) {
-				printf("Payload size of %u\n", p.payload[0]);
-				printf("Received from ");
-				print_ip(p.source);
-				printf("\n");
-				return 0;
-			}
-			if (receive == UTIL_ARP_HANDLED) {
-				printf("ARP request from ");
-				print_mac(net_iface.arp_cache[net_iface.arp_cache_count-1].mac_address);
-				printf(" handled and learned. \n");
-			}
-		}
+
+		usleep(TIMEOUT_MS * 1000);
+		res = send_packet(&net_iface, NET_TTL, NET_PROTOCOL_UDP, destination, payload, payload_size);
+		if (res == NET_ERROR) {
+			printf("Could not send packet.\n");
+		};
 		if (res == NET_PENDING) {
-			res = send_packet(&net_iface, NET_TTL, NET_PROTOCOL_UDP, destination, payload_size, payload);
 			if (tries == 4) {
-				printf("ARP failed on 4 tries to %s.", argv[7]);
+				printf("ARP failed on 4 tries to destination or gateway.\n");
 				return 1;
 			}
 			tries++;
 		};
+
+		if (link_await(&iface, TIMEOUT_MS) == LINK_READY) {
+			packet p;
+			int receive = get_packet(&net_iface, &p); // fills the ARP cache as a side effect
+			if (receive == UTIL_RECEIVED) return 0;
+		}
 	}
 	
 	return 0;

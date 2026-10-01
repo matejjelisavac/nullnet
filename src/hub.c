@@ -21,7 +21,6 @@ int main(int argc, char *argv[]) {
 	struct sockaddr_un connections[HUB_MAX_PORTS];
 	size_t active_ports = 0;
 
-	// TODO argument checking
 	if (argc != 2) {
 		fprintf(stderr, "usage: %s <hub-path>\n", argv[0]);
 		return 1;
@@ -45,16 +44,28 @@ int main(int argc, char *argv[]) {
 
 		// Wire Messages
 		if (received == WIRE_MSG_LENGTH) {
-
 			if (buf[0] == WIRE_HELLO) {
-				if (active_ports == HUB_MAX_PORTS) continue; //Maximum ports reached
-				if (find_port(connections, &sender, active_ports) != -1) continue; //Duplicate
+				printf("HELLO received from %s:\t", sender.sun_path);
+				if (active_ports == HUB_MAX_PORTS) {
+					printf("max ports reached\n");
+					continue;
+				} //Maximum ports reached
+				if (find_port(connections, &sender, active_ports) != -1) {
+					printf("duplicate\n");
+					continue;
+				};
+				printf("attached at index %zu\n", active_ports);
 				connections[active_ports] = sender;
 				active_ports++;
 			}
 			else if (buf[0] == WIRE_GOODBYE) {
+				printf("GOODBYE received from %s:\t", sender.sun_path);
 				int leaving = find_port(connections, &sender, active_ports);
-				if (leaving == -1) continue; //Never existed
+				if (leaving == -1) {
+					printf("was never connected\n");
+					continue;
+				};
+				printf("index %d. Cleared and re-purposed\n", leaving);
 				connections[leaving] = connections[active_ports-1];
 				active_ports--;
 			}
@@ -72,7 +83,6 @@ int main(int argc, char *argv[]) {
 				if ((int) i == skip) continue;
 				sendto(socket_fd, buf, received, 0, (struct sockaddr *) (connections+i), sizeof connections[i]);
 			}
-			
 		}
 	}
 }

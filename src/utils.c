@@ -1,4 +1,7 @@
 #include "utils.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 void print_mac(const uint8_t *mac) {
@@ -62,13 +65,13 @@ int read_ip(uint8_t *ip_buf, char *ip) {
 	return 0;
 }
 
-int get_packet(packet *p, net_interface *net_iface) {
+int get_packet(net_interface *net_iface, packet *p) {
 	frame f;
 	if (recv_frame(net_iface->iface, &f) != LINK_OK) return UTIL_ERROR; //no need to check for not_mine mac address
 	if (f.type == LINK_TYPE_ARP) {
 		if (arp_handle(net_iface, f.payload, f.payload_size) != ARP_OK) return UTIL_ERROR;
 			return UTIL_ARP_HANDLED;
 		}
-	if (recv_packet(net_iface, f.payload, f.payload_size, p) == NET_NOT_MINE) return UTIL_NOT_MINE;
+	if (recv_packet(net_iface, p, f.payload, f.payload_size) == NET_NOT_MINE) return UTIL_NOT_MINE;
 	return UTIL_RECEIVED;
 }

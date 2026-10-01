@@ -1,5 +1,8 @@
 #include "arp.h"
+#include <stdint.h>
+#include <stddef.h>
 #include <string.h>
+#include <time.h>
 
 int build_arp(arp_msg *a, uint8_t operation, const uint8_t *source_mac, const uint8_t *source_ip, const uint8_t *destination_ip) {
 	a->operation = operation;
@@ -62,7 +65,7 @@ void filter_stale_cache(arp_entry *cache, size_t *cache_size) {
 	}
 }
 
-int arp_lookup(net_interface *net_iface, const uint8_t *destination_ip, uint8_t *destination_mac_buf) {
+int arp_lookup(net_interface *net_iface, uint8_t *destination_mac_buf, const uint8_t *destination_ip) {
 	filter_stale_cache(net_iface->arp_cache, &(net_iface->arp_cache_count));
 	// Lookup table.
 	for (size_t i = 0; i < net_iface->arp_cache_count; i++) {
@@ -83,7 +86,7 @@ int arp_request(net_interface *net_iface, const uint8_t *destination_ip) {
 	if (arp_len == 0) return ARP_ERROR;
 
 	uint8_t broadcast_mac[LINK_MAC_LENGTH] = LINK_BROADCAST_MAC;
-	if (send_frame(net_iface->iface, LINK_TYPE_ARP, broadcast_mac, arp_len, buf) != LINK_OK) return ARP_ERROR;
+	if (send_frame(net_iface->iface, LINK_TYPE_ARP, broadcast_mac, buf, arp_len) != LINK_OK) return ARP_ERROR;
 	return ARP_PENDING;
 }
 
@@ -94,7 +97,7 @@ int arp_response(net_interface *net_iface, const uint8_t *destination_ip, const 
 	uint8_t buf[ARP_MSG_LENGTH];
 	size_t arp_len = serialize_arp(&outgoing, buf, sizeof buf);
 	if (arp_len == 0) return ARP_ERROR;
-	if (send_frame(net_iface->iface, LINK_TYPE_ARP, destination_mac, arp_len, buf) != LINK_OK) return ARP_ERROR;
+	if (send_frame(net_iface->iface, LINK_TYPE_ARP, destination_mac, buf, arp_len) != LINK_OK) return ARP_ERROR;
 	return ARP_OK;
 }
 

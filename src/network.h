@@ -2,8 +2,10 @@
 #define NETWORK_H
 
 #include "link.h"
-#include <time.h>
+#include <stdint.h>
+#include <stddef.h>
 #include <stdbool.h>
+#include <time.h>
 
 // Size in bytes of one IP Address.
 #define NET_IP_LENGTH 4
@@ -54,13 +56,19 @@ typedef struct {
 	size_t arp_cache_count;
 } net_interface;
 
+int build_packet(packet *p, uint8_t ttl, uint8_t protocol, const uint8_t *source, const uint8_t *destination, const uint8_t *payload, uint16_t payload_size);
+
+size_t serialize_packet(const packet *p, uint8_t *buf, size_t buf_size);
+
+int deserialize_packet(packet *p, const uint8_t *incoming, size_t incoming_size);
+
 int net_init(net_interface *net_iface, interface *iface, const uint8_t *ip_address, const uint8_t *netmask, const uint8_t *gateway);
 
-int send_packet(net_interface *net_iface, uint8_t ttl, uint8_t protocol, const uint8_t *destination, uint16_t payload_size, const uint8_t *payload);
+int send_packet(net_interface *net_iface, uint8_t ttl, uint8_t protocol, const uint8_t *destination, const uint8_t *payload, uint16_t payload_size);
 
 int forward_packet(net_interface *net_iface, packet *p);
 
-int recv_packet(net_interface *net_iface, uint8_t *payload, size_t payload_size, packet *p);
+int recv_packet(net_interface *net_iface, packet *p, const uint8_t *payload, size_t payload_size);
 
 bool ip_in_subnet(const uint8_t *local, const uint8_t *target, const uint8_t *netmask);
 

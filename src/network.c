@@ -1,7 +1,11 @@
 #include "network.h"
 #include "arp.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <stdbool.h>
+#include <string.h>
 
-int build_packet(packet *p, uint8_t ttl, uint8_t protocol, const uint8_t *source, const uint8_t *destination, uint16_t payload_size, const uint8_t *payload) {
+int build_packet(packet *p, uint8_t ttl, uint8_t protocol, const uint8_t *source, const uint8_t *destination, const uint8_t *payload, uint16_t payload_size) {
 	if (payload_size > NET_MTU) return 1;
 	if (protocol != NET_PROTOCOL_UDP && protocol != NET_PROTOCOL_TCP) return NET_ERROR;
 	p->ttl = ttl;
@@ -97,7 +101,7 @@ int net_init(net_interface *net_iface, interface *iface, const uint8_t *ip_addre
 	return NET_OK;
 }
 
-int resolve_next_hop_ip(uint8_t *next_hop_ip, const net_interface *net_iface, const uint8_t *destination_ip) {
+static int resolve_next_hop_ip(uint8_t *next_hop_ip, const net_interface *net_iface, const uint8_t *destination_ip) {
 	if (!ip_in_subnet(net_iface->ip_address, destination_ip, net_iface->netmask)) {
 		static const uint8_t no_gateway[NET_IP_LENGTH] = {0}; //Workaround as net_iface is pre-routing-table
 		if (memcmp(net_iface->gateway, no_gateway, NET_IP_LENGTH) == 0) return NET_ERROR;
@@ -109,16 +113,16 @@ int resolve_next_hop_ip(uint8_t *next_hop_ip, const net_interface *net_iface, co
 	return NET_OK;
 }
 
-int resolve_next_hop_mac(uint8_t *next_hop_mac, net_interface *net_iface, const uint8_t *next_hop_ip) {
+static int resolve_next_hop_mac(uint8_t *next_hop_mac, net_interface *net_iface, const uint8_t *next_hop_ip) {
 	// ARP for the MAC address of the next hop
-	if (arp_lookup(net_iface, next_hop_ip, next_hop_mac) == ARP_NOT_FOUND) { // Only returns Found or Not Found
+	if (arp_lookup(net_iface, next_hop_mac, next_hop_ip) == ARP_NOT_FOUND) { // Only returns Found or Not Found
 		if (arp_request(net_iface, next_hop_ip) != ARP_PENDING) return NET_ERROR; // Only returns pending or error
 		return NET_PENDING; // Tell the caller the try failed. TODO: Eventually will queue the packet and send it on the ARP reply instead of dropping it.
 	}
 	return NET_OK;
 }
 
-int send_packet(net_interface *net_iface, uint8_t ttl, uint8_t protocol, const uint8_t *destination, uint16_t payload_size, const uint8_t *payload) {
+int send_packet(net_interface *net_iface, uint8_t ttl, uint8_t protocol, const uint8_t *destination, const uint8_t *payload, uint16_t payload_size) {
 	
 	// Decide next hop (either in this subnet, or to router)
 	uint8_t next_hop_ip[NET_IP_LENGTH];
@@ -128,15 +132,15 @@ int send_packet(net_interface *net_iface, uint8_t ttl, uint8_t protocol, const u
 	int res = resolve_next_hop_mac(next_hop_mac, net_iface, next_hop_ip);
 	if (res == NET_PENDING) return NET_PENDING;
 	if (res == NET_ERROR) return NET_ERROR;
-
+	
 	// If MAC found, build and serialize packet, send to L2
 	packet p;
-	if (build_packet(&p, protocol, ttl, net_iface->ip_address, destination, payload_size, payload) != NET_OK) return NET_ERROR;
+	if (build_packet(&p, ttl, protocol, net_iface->ip_address, destination, payload, payload_size) != NET_OK) return NET_ERROR;
 	uint8_t buf[NET_HEADER_LENGTH + NET_MTU];
 	size_t p_len = serialize_packet(&p, buf, sizeof buf);
 	if (p_len == 0) return NET_ERROR;
-
-	if (send_frame(net_iface->iface, LINK_TYPE_PACKET, next_hop_mac, p_len, buf) != LINK_OK) return NET_ERROR;
+	
+	if (send_frame(net_iface->iface, LINK_TYPE_PACKET, next_hop_mac, buf, p_len) != LINK_OK) return NET_ERROR;
 	return NET_OK;
 }
 
@@ -153,11 +157,11 @@ int forward_packet(net_interface *net_iface, packet *p) {
 	uint8_t buf[NET_HEADER_LENGTH + NET_MTU];
 	size_t p_len = serialize_packet(p, buf, sizeof buf);
 	if (p_len == 0) return NET_ERROR;
-	if (send_frame(net_iface->iface, LINK_TYPE_PACKET, next_hop_mac, p_len, buf) != LINK_OK) return NET_ERROR;
+	if (send_frame(net_iface->iface, LINK_TYPE_PACKET, next_hop_mac, buf, p_len) != LINK_OK) return NET_ERROR;
 	return NET_OK;
 }
 
-int recv_packet(net_interface *net_iface, uint8_t *payload, size_t payload_size, packet *p) {
+int recv_packet(net_interface *net_iface, packet *p, const uint8_t *payload, size_t payload_size) {
 	// Eventually will need broadcast acceptance for DHCP.
 	if (deserialize_packet(p, payload, payload_size) != NET_OK) return NET_ERROR;
 	if (memcmp(p->destination, net_iface->ip_address, NET_IP_LENGTH) != 0) return NET_NOT_MINE; //Let caller decide. Useful for routers.

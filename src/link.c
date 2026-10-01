@@ -8,7 +8,7 @@
 #include "wire.h"
 #include "arp.h"
 
-int build_frame(frame *f, uint8_t type, const uint8_t *source, const uint8_t *destination, uint16_t payload_size, const uint8_t *payload) {
+int build_frame(frame *f, uint8_t type, const uint8_t *source, const uint8_t *destination, const uint8_t *payload, uint16_t payload_size) {
 	if (payload_size > LINK_MTU) return LINK_ERROR;
 
 	f->preamble[0] = LINK_PREAMBLE_HI;
@@ -91,9 +91,9 @@ int deserialize_frame(frame *f, const uint8_t *incoming, size_t incoming_size) {
 	return LINK_OK;
 }
 
-int send_frame(interface *iface, uint8_t type, const uint8_t *destination, uint16_t payload_size, const uint8_t *payload) {
+int send_frame(interface *iface, uint8_t type, const uint8_t *destination, const uint8_t *payload, uint16_t payload_size) {
 	frame f;
-	if (build_frame(&f, type, iface->mac_address, destination, payload_size, payload) != LINK_OK) return LINK_ERROR;
+	if (build_frame(&f, type, iface->mac_address, destination, payload, payload_size) != LINK_OK) return LINK_ERROR;
 
 	uint8_t buf[LINK_HEADER_LENGTH + LINK_MTU];
 	size_t f_len = serialize_frame(&f, buf, sizeof buf);

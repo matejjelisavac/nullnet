@@ -29,6 +29,9 @@
 	// 				  to host A, which needs to be accepted by the router on L2, which only accepts its own MAC first.
 
 #include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdbool.h>
 #include "utils.h"
 #include "network.h"
 #include "link.h"
@@ -38,7 +41,7 @@
 #define POLL_TIMEOUT_MS 250
 	
 int print_usage(char *prog_name) {
-	fprintf(stderr, "usage: %s <hub-path> <own-path> <mac> <ip> <netmask> [...]\n", prog_name);
+	fprintf(stderr, "usage: %s <own-path> <hub-path> <mac> <ip> <netmask> [...]\n", prog_name);
 	fprintf(stderr, "       (five arguments per interface, at least two interfaces)\n");
 	return 1;
 }
@@ -59,8 +62,8 @@ int main(int argc, char *argv[]) {
 		uint8_t ip[NET_IP_LENGTH];
 		uint8_t netmask[NET_IP_LENGTH];
 
-		char *hub_path = argv[iface_args*i+1];
-		char *own_path = argv[iface_args*i+2];
+		char *own_path = argv[iface_args*i+1];
+		char *hub_path = argv[iface_args*i+2];
 		if (read_mac(mac, argv[iface_args*i+3]) != 0) return print_usage(argv[0]); //indices 3, 8, 13, etc.
 		if (read_ip(ip, argv[iface_args*i+4]) != 0) return print_usage(argv[0]); 
 		if (read_ip(netmask, argv[iface_args*i+5]) != 0) return print_usage(argv[0]); //indices 5, 10, 15, etc.
@@ -76,7 +79,7 @@ int main(int argc, char *argv[]) {
 		if (link_await_many(interfaces, iface_count, POLL_TIMEOUT_MS, &ready) != LINK_READY) continue;
 		net_interface *incoming = &net_interfaces[ready];
 		packet p;
-		int res = get_packet(&p, incoming);
+		int res = get_packet(incoming, &p);
 		if (res == UTIL_NOT_MINE) { //This packet needs to be forwarded to final IP
 			// Find the correct interface to send from with netmask
 			net_interface *outgoing = NULL;
@@ -86,22 +89,23 @@ int main(int argc, char *argv[]) {
 					break;
 				}
 			}
+
+			// If no interface we are more than one hop away, or doesnt exist. Unreachable anyway
+			// Eventually routing table will handle this better
 			if (outgoing == NULL) {
-				// If no interface we are more than one known hop away, or doesnt exist. Unreachable anyway
+				printf("No route to ");
+				print_ip(p.destination);
+				printf(", dropping.\n");
 				continue;
 			}
-			
+
 			// Send. Network will handle changing next_hop_mac, Link will handle changing src mac
+			if (p.ttl <= 1) {
+				printf("TTL expired, dropping.\n");
+				continue;
+			}
 			if (forward_packet(outgoing, &p) != NET_OK) continue; //TODO Decide how to handle errors
-			if (p.ttl <= 0) continue; //Drop dead TTL
-	
-			
-
 		}
-		if (res == UTIL_RECEIVED) { //This packet was sent to the router directly
-			// Check if ARP.
-			// Do stuff.
-		}
+		if (res == UTIL_RECEIVED) continue; //Normal packet addressed to router.
 	}
-
 }
