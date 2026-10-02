@@ -22,8 +22,7 @@ int build_frame(frame *f, uint8_t type, const uint8_t *source, const uint8_t *de
 }
 
 size_t serialize_frame(const frame *f, uint8_t *buf, size_t buf_size) {
-	size_t needed = LINK_HEADER_LENGTH + f->payload_size;
-	if (buf_size < needed) return 0;
+	if (buf_size < LINK_HEADER_LENGTH +  f->payload_size) return 0;
 
 	size_t index = 0;
 	// Preamble
