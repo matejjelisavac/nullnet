@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <string.h>
 
-uint16_t construct_checksum(datagram *d) {
+static uint16_t udp_checksum(const datagram *d) {
 	uint32_t sum = d->src_port + d->dest_port + d->payload_size;
 	size_t index = 0;
 	while (index < d->payload_size) {
@@ -22,7 +22,7 @@ int build_datagram(datagram *d, uint16_t src_port, uint16_t dest_port, const uin
 	d->dest_port = dest_port;
 	d->payload_size = payload_size;
 	memcpy(d->payload, payload, payload_size);
-	d->checksum = construct_checksum(d);
+	d->checksum = udp_checksum(d);
 	return TP_OK;
 }
 
@@ -79,6 +79,25 @@ int deserialize_datagram(datagram *d, const uint8_t *incoming, size_t incoming_s
 	memcpy(d->payload, incoming+index, d->payload_size);
 	index+=d->payload_size;
 	
-	if (construct_checksum(d) != d->checksum) return TP_CHECKSUM_MISMATCH;
+	if (udp_checksum(d) != d->checksum) return TP_CHECKSUM_MISMATCH;
 	return TP_OK;
+}
+
+int send_datagram(net_interface *net_iface, const uint8_t *dest_ip, uint16_t src_port, uint16_t dest_port, const uint8_t *payload, uint16_t payload_size) {
+	datagram d;
+	if (build_datagram(&d, src_port, dest_port, payload, payload_size) != TP_OK) return TP_ERROR;
+
+	uint8_t buf[TP_UDP_HEADER_LENGTH + TP_UDP_MTU];
+	size_t d_len = serialize_datagram(&d, buf, sizeof buf);
+	if (d_len == 0) return TP_ERROR;
+
+
+	if (send_packet(net_iface, NET_TTL, NET_PROTOCOL_UDP, dest_ip, buf, d_len) != NET_OK) return TP_ERROR;
+	return TP_OK;
+}
+
+int recv_datagram(net_interface *net_iface, datagram *d, const uint8_t *payload, size_t payload_size) {
+	if (deserialize_datagram(d, payload, payload_size) != NET_OK) return TP_ERROR;
+	// Give datagram to port.
+	return NET_OK;
 }

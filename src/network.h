@@ -27,10 +27,10 @@
 
 #define NET_OK 0
 #define NET_ERROR 1
-#define NET_PENDING 2
-#define NET_NOT_MINE 3
+#define NET_NOT_MINE 2
 
 #define ARP_CACHE_SIZE 32
+#define PACKET_QUEUE_SIZE 8
 
 typedef struct {
 	uint8_t ttl;
@@ -44,8 +44,16 @@ typedef struct {
 typedef struct {
 	uint8_t ip_address[NET_IP_LENGTH];
 	uint8_t mac_address[LINK_MAC_LENGTH];
-	time_t timestamp;
+	size_t retries;
+	time_t timestamp; //since last retry
 } arp_entry;
+
+typedef struct {
+	uint8_t next_hop_ip[NET_IP_LENGTH];
+	uint16_t serialized_size;
+	uint8_t serialized[NET_HEADER_LENGTH + NET_MTU];
+	time_t timestamp;
+} unresolved_packet;
 
 typedef struct {
 	interface *iface;
@@ -54,6 +62,8 @@ typedef struct {
 	uint8_t gateway[NET_IP_LENGTH];
 	arp_entry arp_cache[ARP_CACHE_SIZE];
 	size_t arp_cache_count;
+	unresolved_packet packet_queue[PACKET_QUEUE_SIZE];
+	size_t packet_queue_count;
 } net_interface;
 
 int build_packet(packet *p, uint8_t ttl, uint8_t protocol, const uint8_t *source, const uint8_t *destination, const uint8_t *payload, uint16_t payload_size);
@@ -62,14 +72,16 @@ size_t serialize_packet(const packet *p, uint8_t *buf, size_t buf_size);
 
 int deserialize_packet(packet *p, const uint8_t *incoming, size_t incoming_size);
 
+bool ip_in_subnet(const uint8_t *local, const uint8_t *target, const uint8_t *netmask);
+
 int net_init(net_interface *net_iface, interface *iface, const uint8_t *ip_address, const uint8_t *netmask, const uint8_t *gateway);
+
+void net_tick(net_interface *net_iface);
 
 int send_packet(net_interface *net_iface, uint8_t ttl, uint8_t protocol, const uint8_t *destination, const uint8_t *payload, uint16_t payload_size);
 
 int forward_packet(net_interface *net_iface, packet *p);
 
 int recv_packet(net_interface *net_iface, packet *p, const uint8_t *payload, size_t payload_size);
-
-bool ip_in_subnet(const uint8_t *local, const uint8_t *target, const uint8_t *netmask);
 
 #endif

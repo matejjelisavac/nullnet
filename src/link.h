@@ -64,7 +64,7 @@ int send_frame(interface *iface, uint8_t type, const uint8_t *destination, const
 
 int recv_frame(interface *iface, frame *f);
 
-int link_init(interface *iface, uint8_t mac_address[LINK_MAC_LENGTH], char *own_path, char *hub_path);
+int link_init(interface *iface, uint8_t mac_address[LINK_MAC_LENGTH], const char *own_path, const char *hub_path);
 
 int link_await(interface *iface, int timeout_ms);
 

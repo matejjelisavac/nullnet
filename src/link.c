@@ -95,10 +95,10 @@ int send_frame(interface *iface, uint8_t type, const uint8_t *destination, const
 	if (build_frame(&f, type, iface->mac_address, destination, payload, payload_size) != LINK_OK) return LINK_ERROR;
 
 	uint8_t buf[LINK_HEADER_LENGTH + LINK_MTU];
-	size_t f_len = serialize_frame(&f, buf, sizeof buf);
-	if (f_len == 0) return LINK_ERROR;
+	size_t f_size = serialize_frame(&f, buf, sizeof buf);
+	if (f_size == 0) return LINK_ERROR;
 	
-	if (sendto(iface->socket_fd, buf, f_len, 0, (struct sockaddr *) &(iface->hub), sizeof iface->hub) == -1) return LINK_ERROR;
+	if (sendto(iface->socket_fd, buf, f_size, 0, (struct sockaddr *) &(iface->hub), sizeof iface->hub) == -1) return LINK_ERROR;
 	return LINK_OK;
 }
 
@@ -114,7 +114,7 @@ int recv_frame(interface *iface, frame *f) {
 	return LINK_OK;
 }
 
-int link_init(interface *iface, uint8_t mac_address[LINK_MAC_LENGTH], char *own_path, char *hub_path) {
+int link_init(interface *iface, uint8_t mac_address[LINK_MAC_LENGTH], const char *own_path, const char *hub_path) {
 	// Listening socket
 	struct sockaddr_un s = {0};
 	s.sun_family = AF_UNIX;

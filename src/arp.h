@@ -13,7 +13,7 @@
 #define ARP_OK 0
 #define ARP_ERROR 1
 
-#define ARP_PENDING 2
+#define ARP_SENT 2
 
 #define ARP_FOUND 3
 #define ARP_NOT_FOUND 4
@@ -23,6 +23,11 @@
 // Time to expire, in seconds
 #define ARP_CACHE_EXPIRY 30
 
+// Waiting on ARP Response timeout until try again.
+#define ARP_CACHE_INCOMPLETE_TIMEOUT 1 // PACKET_QUEUE_EXPIRY > INCOMPLETE_TIMOUT × MAX_RETRIES
+
+#define ARP_MAX_RETRIES 3
+
 typedef struct {
 	uint8_t operation;
 	uint8_t source_mac[LINK_MAC_LENGTH];
@@ -30,22 +35,18 @@ typedef struct {
 	uint8_t destination_ip[NET_IP_LENGTH];
 } arp_msg;
 
-int build_arp(arp_msg *a, uint8_t operation, const uint8_t *source_mac, const uint8_t *source_ip, const uint8_t *destination_ip);
-
-size_t serialize_arp(const arp_msg *a, uint8_t *buf, size_t buf_size);
-
 int deserialize_arp(arp_msg *a, const uint8_t *incoming, size_t incoming_size);
 
-void filter_stale_cache(arp_entry *cache, size_t *cache_size);
+int arp_cache_lookup(net_interface *net_iface, uint8_t *destination_mac_buf, const uint8_t *destination_ip);
 
-void cache_arp(net_interface *net_iface, const uint8_t *incoming_ip, const uint8_t *incoming_mac);
+bool arp_cache_contains(const net_interface *net_iface, const uint8_t *target_ip);
 
-int arp_response(net_interface *net_iface, const uint8_t *destination_ip, const uint8_t *destination_mac);
-
-int arp_lookup(net_interface *net_iface, uint8_t *destination_mac_buf, const uint8_t *destination_ip);
+int arp_cache_incomplete(net_interface *net_iface, const uint8_t *ip_address);
 
 int arp_request(net_interface *net_iface, const uint8_t *destination_ip);
 
-int arp_handle(net_interface *net_iface, uint8_t *payload, size_t payload_size);
+int arp_handle(net_interface *net_iface, const uint8_t *payload, size_t payload_size);
+
+void arp_tick(net_interface *net_iface);
 
 #endif

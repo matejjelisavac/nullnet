@@ -6,6 +6,7 @@
 #include "network.h"
 #include "arp.h"
 #include "utils.h"
+#include "transport.h"
 
 int print_usage(char *prog_name) {
 	fprintf(stderr, "usage: %s <own-path> <hub-path> <mac> <ip> <netmask> <gateway> <destination-ip>\n", prog_name);
@@ -40,22 +41,16 @@ int main(int argc, char *argv[]) {
 	// Send hello to destination
 	uint16_t payload_size = 0x0003;
 	uint8_t payload[] = {0xAA, 0xAA, 0xAA};
+	uint16_t port = 80;
 	
 	int tries = 0;
 	int res = 0;
 	while (true) {
 
 		usleep(TIMEOUT_MS * 1000);
-		res = send_packet(&net_iface, NET_TTL, NET_PROTOCOL_UDP, destination, payload, payload_size);
-		if (res == NET_ERROR) {
-			printf("Could not send packet.\n");
-		};
-		if (res == NET_PENDING) {
-			if (tries == 4) {
-				printf("ARP failed on 4 tries to destination or gateway.\n");
-				return 1;
-			}
-			tries++;
+		res = send_datagram(&net_iface, destination, port, port, payload, payload_size);
+		if (res == TP_ERROR) {
+			printf("Could not send datagram.\n");
 		};
 
 		if (link_await(&iface, TIMEOUT_MS) == LINK_READY) {
