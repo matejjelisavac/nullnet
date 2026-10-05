@@ -203,6 +203,8 @@ int arp_handle(net_interface *net_iface, const uint8_t *payload, size_t payload_
 }
 
 // Filter cache and perform retries.
+// Retries can't be event-driven: a lost reply produces no event, and hanging them off
+// send_packet would mean a host with nothing left to send never retries.
 void arp_tick(net_interface *net_iface) {
 	arp_cache_expire(net_iface);
 	arp_cache_retry(net_iface);

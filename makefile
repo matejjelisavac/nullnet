@@ -1,8 +1,8 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -g -Isrc
 
-STACK = src/link.c src/network.c src/arp.c src/utils.c
-HEADERS = src/link.h src/network.h src/arp.h src/wire.h src/utils.h
+STACK = src/link.c src/network.c src/arp.c src/udp.c src/utils.c
+HEADERS = src/link.h src/network.h src/arp.h src/transport.h src/udp.h src/wire.h src/utils.h
 
 .PHONY: all clean
 

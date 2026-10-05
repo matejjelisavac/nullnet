@@ -115,16 +115,12 @@ static int queue_packet(net_interface *net_iface, const uint8_t *next_hop_ip, co
 	return NET_OK;
 }
 
-// Handles all housekeeping at the network level. Packet queue update filter & flush., etc.
-void net_tick(net_interface *net_iface) {
-
-	arp_tick(net_iface);
-
+static void update_packet_queue(net_interface *net_iface) {
 	size_t index = 0;
 	while (index < net_iface->packet_queue_count) {
 		uint8_t mac[LINK_MAC_LENGTH];
 		unresolved_packet *up = &net_iface->packet_queue[index];
-
+	
 		// FLUSH
 		if (arp_cache_lookup(net_iface, mac, up->next_hop_ip) == ARP_FOUND) {
 			// Best-effort. We don't care if it sent or not.
@@ -141,6 +137,14 @@ void net_tick(net_interface *net_iface) {
 		}
 		index++;
 	}
+}
+
+// Handles all housekeeping at the network level. Packet queue update filter & flush., etc.
+// Flushing could fire on incoming ARP, but dropping has no event - a packet whose address
+// was given up on is only droppable, never announced - so both live on the tick together.
+void net_tick(net_interface *net_iface) {
+	arp_tick(net_iface);
+	update_packet_queue(net_iface);
 }
 
 static int resolve_next_hop_ip(const net_interface *net_iface, uint8_t *next_hop_ip, const uint8_t *destination_ip) {

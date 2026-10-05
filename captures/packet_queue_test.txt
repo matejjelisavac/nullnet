@@ -1,0 +1,23 @@
+Oct 1 2026
+
+segment A, 2026-10-01 — host-a 10.0.1.5 <-> router <-> host-b 10.0.2.7
+
+Testing new packet queue; first ARP cache miss queues packet and resolves on tick.
+
+-----Segment A-----
+
+[14:25:55.944] AA:00:00:05 > FF:FF:FF:FF  ARP     10.0.1.5 is requesting 10.0.1.1
+[14:25:55.945] AA:00:00:01 > AA:00:00:05  ARP     10.0.1.1 is at AA:00:00:01
+[14:25:55.945] AA:00:00:05 > AA:00:00:01  PACKET  10.0.1.5 > 10.0.2.7  ttl 15   UDP   size 3
+[14:25:55.945] AA:00:00:05 > AA:00:00:01  PACKET  10.0.1.5 > 10.0.2.7  ttl 15   UDP   size 3
+[14:25:55.945] AA:00:00:01 > AA:00:00:05  PACKET  10.0.2.7 > 10.0.1.5  ttl 14   UDP   size 3
+... (no rate limit)
+
+-----Segment B-----
+
+[14:25:55.944] AA:00:00:07 > FF:FF:FF:FF  ARP     10.0.2.7 is requesting 10.0.2.1
+[14:25:55.945] AA:00:00:02 > AA:00:00:07  ARP     10.0.2.1 is at AA:00:00:02
+[14:25:55.945] AA:00:00:07 > AA:00:00:02  PACKET  10.0.2.7 > 10.0.1.5  ttl 15   UDP   size 3
+[14:25:55.945] AA:00:00:02 > AA:00:00:07  PACKET  10.0.1.5 > 10.0.2.7  ttl 14   UDP   size 3
+[14:25:55.945] AA:00:00:07 > AA:00:00:02  PACKET  10.0.2.7 > 10.0.1.5  ttl 15   UDP   size 3
+... (no rate limit)

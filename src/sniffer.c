@@ -7,6 +7,7 @@
 #include "link.h"
 #include "network.h"
 #include "arp.h"
+#include "udp.h"
 #include "utils.h"
 
 #define TIMEOUT_MS 1000
@@ -46,6 +47,19 @@ void print_packet_summary(frame *f, packet *p) {
 	printf("\n");
 }
 
+void print_datagram_summary(frame *f, packet *p, datagram *d) {
+	print_summary(f);
+	printf("  %-8s", "UDP");
+	print_ip(p->source);
+	printf(":%u > ", d->src_port);
+	print_ip(p->destination);
+	printf(":%u", d->dest_port);
+	printf("  ttl %-3u", p->ttl);
+	printf("  cksum %04X", d->checksum);
+	printf("  size %u", d->payload_size);
+	printf("\n");
+}
+
 void print_arp_summary(frame *f, arp_msg *a) {
 	print_summary(f);
 	printf("  %-8s", "ARP");
@@ -79,25 +93,38 @@ int main(int argc, char *argv[]) {
 			frame f;
 			int frame_res = recv_frame(&iface, &f);
 			if (frame_res != LINK_OK && frame_res != LINK_NOT_MINE) continue;
+			switch (f.type) {
+				case LINK_TYPE_ARP: {
+					arp_msg arp;
+					if (deserialize_arp(&arp, f.payload, f.payload_size) != ARP_OK) {
+						print_summary(&f);
+						printf("\t malformed ARP\n");
+						continue;
+					};
+					print_arp_summary(&f, &arp);
+					break;
+				}
+				case LINK_TYPE_PACKET: {
+					packet p;
+					if (deserialize_packet(&p, f.payload, f.payload_size) != NET_OK) {
+						print_summary(&f);
+						printf("\t malformed packet\n");
+						continue;
+					};
+					
+					if (p.protocol == NET_PROTOCOL_UDP) {
+						datagram d;
+						if (deserialize_datagram(&d, p.payload, p.payload_size) == TP_OK) {
+							print_datagram_summary(&f, &p, &d);
+							break;
+						}
+						// Fall through to the packet line if the datagram won't parse.
+					}
+					print_packet_summary(&f, &p);
+					break;
+				}
+			}
 
-			if (f.type == LINK_TYPE_ARP) {
-				arp_msg arp;
-				if (deserialize_arp(&arp, f.payload, f.payload_size) != ARP_OK) {
-					print_summary(&f);
-					printf("\t malformed ARP\n");
-					continue;
-				};
-				print_arp_summary(&f, &arp);
-			}
-			else {
-				packet p;
-				if (deserialize_packet(&p, f.payload, f.payload_size) != NET_OK) {
-					print_summary(&f);
-					printf("\t malformed packet\n");
-					continue;
-				};
-				print_packet_summary(&f, &p);
-			}
 		}
 		if (poll == LINK_ERROR) {
 			printf("Something went wrong when polling the hub.\n");

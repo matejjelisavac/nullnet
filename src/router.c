@@ -78,9 +78,16 @@ int main(int argc, char *argv[]) {
 		size_t ready = 0;
 		if (link_await_many(interfaces, iface_count, POLL_TIMEOUT_MS, &ready) != LINK_READY) continue;
 		net_interface *incoming = &net_interfaces[ready];
+		net_tick(incoming);
+		frame f;
+		recv_frame(&interfaces[ready], &f); // TODO no error check
+		if (f.type == LINK_TYPE_ARP) {
+			arp_handle(incoming, f.payload, f.payload_size);
+			continue;
+		};
 		packet p;
-		int res = get_packet(incoming, &p);
-		if (res == UTIL_NOT_MINE) { //This packet needs to be forwarded to final IP
+		int res = recv_packet(incoming, &p, f.payload, f.payload_size);
+		if (res == NET_NOT_MINE) { //This packet needs to be forwarded to final IP
 			// Find the correct interface to send from with netmask
 			net_interface *outgoing = NULL;
 			for (int i = 0; i < iface_count; i++) {
@@ -106,6 +113,6 @@ int main(int argc, char *argv[]) {
 			}
 			if (forward_packet(outgoing, &p) != NET_OK) continue; //TODO Decide how to handle errors
 		}
-		if (res == UTIL_RECEIVED) continue; //Normal packet addressed to router.
+		if (res == NET_OK) continue; //Normal packet addressed to router.
 	}
 }

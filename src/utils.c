@@ -1,4 +1,9 @@
 #include "utils.h"
+#include "network.h"
+#include "link.h"
+#include "arp.h"
+#include "udp.h"
+#include "transport.h"
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -65,13 +70,18 @@ int read_ip(uint8_t *ip_buf, char *ip) {
 	return 0;
 }
 
-int get_packet(net_interface *net_iface, packet *p) {
+int handle_incoming(net_interface *net_iface) {
 	frame f;
 	if (recv_frame(net_iface->iface, &f) != LINK_OK) return UTIL_ERROR; //no need to check for not_mine mac address
 	if (f.type == LINK_TYPE_ARP) {
 		if (arp_handle(net_iface, f.payload, f.payload_size) != ARP_OK) return UTIL_ERROR;
 			return UTIL_ARP_HANDLED;
 		}
-	if (recv_packet(net_iface, p, f.payload, f.payload_size) == NET_NOT_MINE) return UTIL_NOT_MINE;
+	packet p;
+	if (recv_packet(net_iface, &p, f.payload, f.payload_size) == NET_NOT_MINE) return UTIL_NOT_MINE;
+	if (p.protocol == NET_PROTOCOL_UDP) {
+		datagram d;
+		if (recv_datagram(&d, p.payload, p.payload_size) != TP_OK) return UTIL_ERROR;
+	}
 	return UTIL_RECEIVED;
 }

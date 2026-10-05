@@ -1,6 +1,11 @@
+#include "udp.h"
 #include "transport.h"
 #include <stdint.h>
 #include <string.h>
+#include <stdbool.h>
+
+static port_entry ports[TP_MAX_PORTS] = {0}; 
+static size_t ports_count = 0;
 
 static uint16_t udp_checksum(const datagram *d) {
 	uint32_t sum = d->src_port + d->dest_port + d->payload_size;
@@ -83,6 +88,30 @@ int deserialize_datagram(datagram *d, const uint8_t *incoming, size_t incoming_s
 	return TP_OK;
 }
 
+static int find_port(uint16_t port) {
+	for (size_t i = 0; i < ports_count; i++) {
+		if (ports[i].port == port) return i;
+	}
+	return -1;
+}
+
+int bind_udp_port(uint16_t port, tp_handler handler) {
+	if (find_port(port) != -1) return TP_ERROR;
+	if (ports_count == TP_MAX_PORTS) return TP_ERROR;
+	ports[ports_count].port = port;
+	ports[ports_count].handler = handler;
+	ports_count++;
+	return TP_OK;
+}
+
+int unbind_udp_port(uint16_t port) {
+	int index = find_port(port);
+	if (index == -1) return TP_ERROR;
+	ports[index] = ports[ports_count-1];
+	ports_count--;
+	return TP_OK;
+}
+
 int send_datagram(net_interface *net_iface, const uint8_t *dest_ip, uint16_t src_port, uint16_t dest_port, const uint8_t *payload, uint16_t payload_size) {
 	datagram d;
 	if (build_datagram(&d, src_port, dest_port, payload, payload_size) != TP_OK) return TP_ERROR;
@@ -91,13 +120,14 @@ int send_datagram(net_interface *net_iface, const uint8_t *dest_ip, uint16_t src
 	size_t d_len = serialize_datagram(&d, buf, sizeof buf);
 	if (d_len == 0) return TP_ERROR;
 
-
 	if (send_packet(net_iface, NET_TTL, NET_PROTOCOL_UDP, dest_ip, buf, d_len) != NET_OK) return TP_ERROR;
 	return TP_OK;
 }
 
-int recv_datagram(net_interface *net_iface, datagram *d, const uint8_t *payload, size_t payload_size) {
-	if (deserialize_datagram(d, payload, payload_size) != NET_OK) return TP_ERROR;
-	// Give datagram to port.
-	return NET_OK;
+int recv_datagram(datagram *d, const uint8_t *payload, size_t payload_size) {
+	if (deserialize_datagram(d, payload, payload_size) != TP_OK) return TP_ERROR;
+	int index = find_port(d->dest_port);
+	if (index == -1) return TP_ERROR; // TODO. Separate message?
+	ports[index].handler(d->payload, d->payload_size);
+	return TP_OK;
 }
