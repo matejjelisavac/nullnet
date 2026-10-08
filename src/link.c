@@ -8,6 +8,9 @@
 #include "wire.h"
 #include "arp.h"
 
+static interface ifaces[LINK_MAX_INTERFACES] = {0};
+static size_t iface_count = 0;
+
 int build_frame(frame *f, uint8_t type, const uint8_t *source, const uint8_t *destination, const uint8_t *payload, uint16_t payload_size) {
 	if (payload_size > LINK_MTU) return LINK_ERROR;
 
@@ -114,7 +117,10 @@ int recv_frame(interface *iface, frame *f) {
 	return LINK_OK;
 }
 
-int link_init(interface *iface, uint8_t mac_address[LINK_MAC_LENGTH], const char *own_path, const char *hub_path) {
+interface *link_init(uint8_t mac_address[LINK_MAC_LENGTH], const char *own_path, const char *hub_path) {
+	if (iface_count == LINK_MAX_INTERFACES) return NULL;
+	interface *iface = &ifaces[iface_count];
+
 	// Listening socket
 	struct sockaddr_un s = {0};
 	s.sun_family = AF_UNIX;
@@ -122,9 +128,12 @@ int link_init(interface *iface, uint8_t mac_address[LINK_MAC_LENGTH], const char
 
 	unlink(own_path);
 	int socket_fd = socket(AF_UNIX, SOCK_DGRAM, 0);
-	if (socket_fd == -1) return LINK_ERROR; 
+	if (socket_fd == -1) return NULL;
 	iface->socket_fd = socket_fd;
-	if (bind(iface->socket_fd, (struct sockaddr *) &s, sizeof s) != 0) return LINK_ERROR;
+	if (bind(iface->socket_fd, (struct sockaddr *) &s, sizeof s) != 0) {
+		close(socket_fd);
+		return NULL;
+	}
 
 	// Hub Socket
 	memset(&iface->hub, 0, sizeof(struct sockaddr_un));
@@ -136,14 +145,17 @@ int link_init(interface *iface, uint8_t mac_address[LINK_MAC_LENGTH], const char
 
 	// Send HELLO to hub.
 	uint8_t hello = WIRE_HELLO;
-	if (sendto(iface->socket_fd, &hello, WIRE_MSG_LENGTH, 0, (struct sockaddr *) &(iface->hub), sizeof iface->hub) == -1) return LINK_ERROR;
+	if (sendto(iface->socket_fd, &hello, WIRE_MSG_LENGTH, 0, (struct sockaddr *) &(iface->hub), sizeof iface->hub) == -1) {
+		close(socket_fd);
+		return NULL;
+	}
 
-	return LINK_OK;
+	iface_count++;
+	return iface;
 }
 
 int link_await(interface *iface, int timeout_ms) {
 	// if ready, LINK_READY, else LINK_TIMEOUT
-
 	struct pollfd pfd = {
 		.fd = iface->socket_fd,
 		.events = POLLIN
@@ -155,21 +167,20 @@ int link_await(interface *iface, int timeout_ms) {
 	return LINK_ERROR;
 }
 
-int link_await_many(const interface *ifaces, size_t ifaces_size, int timeout_ms, size_t *ready_index) {
-	// No count check intentional, but should be documented.
-	struct pollfd pfds[ifaces_size];
-	for (size_t i = 0; i < ifaces_size; i++) {
+int link_await_all(interface **iface, int timeout_ms) {
+	struct pollfd pfds[iface_count];
+	for (size_t i = 0; i < iface_count; i++) {
 		pfds[i].events = POLLIN;
 		pfds[i].fd = ifaces[i].socket_fd;
 	}
 	
-	int res = poll(pfds, ifaces_size, timeout_ms);
+	int res = poll(pfds, iface_count, timeout_ms);
 	if (res == -1) return LINK_ERROR;
 	if (res == 0) return LINK_TIMEOUT;
 
-	for (size_t i = 0; i < ifaces_size; i++) {
+	for (size_t i = 0; i < iface_count; i++) {
 		if (pfds[i].revents & POLLIN) {
-			*ready_index = i;
+			*iface = &ifaces[i];
 			return LINK_READY;
 		}
 	}

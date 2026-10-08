@@ -26,7 +26,7 @@ int bind_udp_port(uint16_t port, tp_handler handler);
 
 int unbind_udp_port(uint16_t port);
 
-int send_datagram(net_interface *net_iface, const uint8_t *dest_ip, uint16_t src_port, uint16_t dest_port, const uint8_t *payload, uint16_t payload_size);
+int send_datagram(const uint8_t *dest_ip, uint16_t src_port, uint16_t dest_port, const uint8_t *payload, uint16_t payload_size);
 
 int recv_datagram(datagram *d, const uint8_t *payload, size_t payload_size);
 

@@ -29,8 +29,14 @@
 #define NET_ERROR 1
 #define NET_NOT_MINE 2
 
+#define NET_READY 3
+#define NET_TIMEOUT 4
+
 #define ARP_CACHE_SIZE 32
 #define PACKET_QUEUE_SIZE 8
+
+#define NET_MAX_ROUTES 8
+#define NET_MAX_INTERFACES 8
 
 typedef struct {
 	uint8_t ttl;
@@ -59,12 +65,18 @@ typedef struct {
 	interface *iface;
 	uint8_t ip_address[NET_IP_LENGTH];
 	uint8_t netmask[NET_IP_LENGTH];
-	uint8_t gateway[NET_IP_LENGTH];
 	arp_entry arp_cache[ARP_CACHE_SIZE];
 	size_t arp_cache_count;
 	unresolved_packet packet_queue[PACKET_QUEUE_SIZE];
 	size_t packet_queue_count;
 } net_interface;
+
+typedef struct {
+	uint8_t dest_prefix[NET_IP_LENGTH];
+	uint8_t netmask[NET_IP_LENGTH];
+	uint8_t next_hop_ip[NET_IP_LENGTH];
+	net_interface *out_iface;
+} routing_entry;
 
 int build_packet(packet *p, uint8_t ttl, uint8_t protocol, const uint8_t *source, const uint8_t *destination, const uint8_t *payload, uint16_t payload_size);
 
@@ -74,13 +86,19 @@ int deserialize_packet(packet *p, const uint8_t *incoming, size_t incoming_size)
 
 bool ip_in_subnet(const uint8_t *local, const uint8_t *target, const uint8_t *netmask);
 
-int net_init(net_interface *net_iface, interface *iface, const uint8_t *ip_address, const uint8_t *netmask, const uint8_t *gateway);
+void apply_netmask(uint8_t *result, const uint8_t *ip_address, const uint8_t *netmask);
 
-void net_tick(net_interface *net_iface);
+int add_route(net_interface *out_iface, const uint8_t *dest_ip, const uint8_t *dest_netmask, const uint8_t *next_hop_ip);
 
-int send_packet(net_interface *net_iface, uint8_t ttl, uint8_t protocol, const uint8_t *destination, const uint8_t *payload, uint16_t payload_size);
+int net_init(interface *iface, const uint8_t *ip_address, const uint8_t *netmask);
 
-int forward_packet(net_interface *net_iface, packet *p);
+void net_tick(void);
+
+int net_await_all(net_interface **ready, int timeout_ms);
+
+int send_packet(uint8_t ttl, uint8_t protocol, const uint8_t *destination, const uint8_t *payload, uint16_t payload_size);
+
+int forward_packet(packet *p);
 
 int recv_packet(net_interface *net_iface, packet *p, const uint8_t *payload, size_t payload_size);
 

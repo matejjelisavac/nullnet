@@ -69,7 +69,7 @@ int main(int argc, char *argv[]) {
 		if (read_ip(netmask, argv[iface_args*i+5]) != 0) return print_usage(argv[0]); //indices 5, 10, 15, etc.
 
 		if (link_init(&interfaces[i], mac, own_path, hub_path) != LINK_OK) return 1;
-		if (net_init(&net_interfaces[i], &interfaces[i], ip, netmask, NULL) != NET_OK) return 1;
+		if (net_init(&net_interfaces[i], &interfaces[i], ip, netmask) != NET_OK) return 1;
 	}
 
 	// Receive loop.

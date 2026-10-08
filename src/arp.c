@@ -52,7 +52,7 @@ int deserialize_arp(arp_msg *a, const uint8_t *incoming, size_t incoming_size) {
 	return ARP_OK;
 }
 
-int arp_cache_lookup(net_interface *net_iface, uint8_t *destination_mac_buf, const uint8_t *destination_ip) {
+int arp_cache_lookup(const net_interface *net_iface, uint8_t *destination_mac_buf, const uint8_t *destination_ip) {
 	// Lookup table.
 	uint8_t zero_mac[LINK_MAC_LENGTH] = {0};
 	for (size_t i = 0; i < net_iface->arp_cache_count; i++) {

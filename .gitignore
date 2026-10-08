@@ -3,3 +3,4 @@ nullnet-vision.md
 *.out
 *.dSYM/
 todo.txt
+.DS_Store

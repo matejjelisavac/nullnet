@@ -37,7 +37,7 @@ typedef struct {
 
 int deserialize_arp(arp_msg *a, const uint8_t *incoming, size_t incoming_size);
 
-int arp_cache_lookup(net_interface *net_iface, uint8_t *destination_mac_buf, const uint8_t *destination_ip);
+int arp_cache_lookup(const net_interface *net_iface, uint8_t *destination_mac_buf, const uint8_t *destination_ip);
 
 bool arp_cache_contains(const net_interface *net_iface, const uint8_t *target_ip);
 

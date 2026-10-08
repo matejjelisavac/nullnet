@@ -38,10 +38,12 @@ int main(int argc, char *argv[]) {
 	if (read_ip(gateway, argv[6]) != 0) return print_usage(argv[0]);
 	if (read_ip(destination, argv[7]) != 0) return print_usage(argv[0]);
 	
-	interface iface = {0};
-	if (link_init(&iface, mac, own_path, hub_path) != LINK_OK) return 1;
-	net_interface net_iface = {0};
-	if (net_init(&net_iface, &iface, ip, netmask, gateway) != NET_OK) return 1;
+
+	interface iface = link_init(mac, own_path, hub_path);
+	if (iface == NULL) return 1;
+	if (net_init(&iface, ip, netmask) != NET_OK) return 1;
+	add_gateway_route()
+	// TODO add gateway
 
 	int TIMEOUT_MS = 1000;
 	// Send hello to destination
@@ -55,11 +57,12 @@ int main(int argc, char *argv[]) {
 	time_t last_send = time(NULL);
 	time_t send_again_after = 1; // in seconds
 	while (true) {
-		if (link_await(&iface, TIMEOUT_MS) == LINK_READY) handle_incoming(&net_iface);
-		net_tick(&net_iface);
+		net_interface *ready = NULL;
+		if (net_await_all(&ready, TIMEOUT_MS) == NET_READY) handle_incoming(ready);
+		net_tick();
 		if (time(NULL) - last_send < send_again_after) continue;
 		
-		res = send_datagram(&net_iface, destination, port, port, payload, payload_size);
+		res = send_datagram(destination, port, port, payload, payload_size);
 		if (res != TP_OK) {
 			printf("Could not send datagram.\n");
 		};
