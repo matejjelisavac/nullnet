@@ -84,14 +84,13 @@ int main(int argc, char *argv[]) {
 
 	uint8_t mac[LINK_MAC_LENGTH] = {0};
 
-	interface iface = {0};
-	if (link_init(&iface, mac, argv[1], argv[2]) != LINK_OK) return 1;
+	interface *iface = link_init(mac, argv[1], argv[2]);
 
 	while (true) {
-		int poll = link_await(&iface, TIMEOUT_MS);
+		int poll = link_await(iface, TIMEOUT_MS);
 		if (poll == LINK_READY) {
 			frame f;
-			int frame_res = recv_frame(&iface, &f);
+			int frame_res = recv_frame(iface, &f);
 			if (frame_res != LINK_OK && frame_res != LINK_NOT_MINE) continue;
 			switch (f.type) {
 				case LINK_TYPE_ARP: {

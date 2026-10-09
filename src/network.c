@@ -95,7 +95,7 @@ void apply_netmask(uint8_t *result, const uint8_t *ip_address, const uint8_t *ne
 	}
 }
 
-int add_route(net_interface *out_iface, const uint8_t *dest_ip, const uint8_t *dest_netmask, const uint8_t *next_hop_ip) {
+int add_route(const uint8_t *dest_ip, const uint8_t *dest_netmask, const uint8_t *next_hop_ip, net_interface *out_iface) {
 	if (route_count == NET_MAX_ROUTES) return NET_ERROR;
 	routing_entry entry;
 	apply_netmask(entry.dest_prefix, dest_ip, dest_netmask); //dest-ip is any ip on destination subnet
@@ -105,6 +105,22 @@ int add_route(net_interface *out_iface, const uint8_t *dest_ip, const uint8_t *d
 	routes[route_count] = entry;
 	route_count++;
 	return NET_OK;
+}
+
+int add_default_route(const uint8_t *gateway) {
+	// Find interface which this gateway is on the same network as
+	net_interface *out_iface = NULL;
+	for (size_t i = 0; i < net_iface_count; i++) {
+		if (ip_in_subnet(net_ifaces[i].ip_address, gateway, net_ifaces[i].netmask)) {
+			out_iface = &net_ifaces[i];
+			break;
+		}
+	}
+	if (out_iface == NULL) return NET_ERROR; //Gateway unreachable (no shared wire)
+
+	// Add default route
+	uint8_t zero_ip[NET_IP_LENGTH] = {0};
+	return add_route(zero_ip, zero_ip, gateway, out_iface);
 }
 
 static int add_net_iface(interface *iface, const uint8_t *ip_address, const uint8_t *netmask) {
@@ -119,6 +135,17 @@ static int add_net_iface(interface *iface, const uint8_t *ip_address, const uint
 
 	net_ifaces[net_iface_count] = net_iface;
 	net_iface_count++;
+	return NET_OK;
+}
+
+int net_init(interface *iface, const uint8_t *ip_address, const uint8_t *netmask) {
+	// Fill interface
+	if (add_net_iface(iface, ip_address, netmask) != NET_OK) return NET_ERROR;
+
+	// Add routing entry for own subnet
+	uint8_t no_hop[NET_IP_LENGTH] = {0}; // 0.0.0.0
+	if (add_route(ip_address, netmask, no_hop, &net_ifaces[net_iface_count - 1]) != NET_OK) return NET_ERROR;
+	
 	return NET_OK;
 }
 
@@ -158,16 +185,32 @@ static void update_packet_queue(net_interface *net_iface) {
 }
 
 static int resolve_next_hop(net_interface **out_iface, uint8_t *next_hop_ip, const uint8_t *destination_ip) {
-	// TODO Will need longest-prefix-match algo
 	routing_entry *res = NULL;
+	uint32_t best = 0;
 	for (size_t i = 0; i < route_count; i++) {
-		if (ip_in_subnet(routes[i].dest_prefix, destination_ip, routes[i].netmask)) {
-			res = &routes[i];
+		if (ip_in_subnet(routes[i].dest_prefix, destination_ip, routes[i].netmask)) {	
+			uint32_t matched = 0;
+
+			// Convert netmask to integer (uint32_t). Since 1s are continous, higher = more matched
+			for (size_t r = 0; r < NET_IP_LENGTH; r++) {
+				matched = (matched << 8) | routes[i].netmask[r];
+			}
+
+			if (res == NULL || matched > best) {
+				res = &routes[i];
+				best = matched;
+			};
 		}
 	}
 	if (res == NULL) return NET_ERROR;
 	*out_iface = res->out_iface; // Mutate the pointer
-	//TODO next_hop_ip should not be set to 0.0.0.0 but DEST if its 0.0.0.0
+
+	// If within our subnet, i.e no next-hop
+	uint8_t zero_ip[NET_IP_LENGTH] = {0};
+	if (memcmp(res->next_hop_ip, zero_ip, NET_IP_LENGTH) == 0) {
+		memcpy(next_hop_ip, destination_ip, NET_IP_LENGTH);
+		return NET_OK;
+	}
 	memcpy(next_hop_ip, res->next_hop_ip, NET_IP_LENGTH);
 	return NET_OK;
 }
@@ -178,17 +221,6 @@ static int request_and_queue(net_interface *net_iface, const uint8_t *next_hop_i
 		if (arp_request(net_iface, next_hop_ip) != ARP_SENT) return NET_ERROR;
 	}
 	return queue_packet(net_iface, next_hop_ip, serialized, serialized_size);
-}
-
-int net_init(interface *iface, const uint8_t *ip_address, const uint8_t *netmask) {
-	// Fill interface
-	if (add_net_iface(iface, ip_address, netmask) != NET_OK) return NET_ERROR;
-
-	// Add routing entry for own subnet
-	uint8_t no_hop[NET_IP_LENGTH] = {0}; // 0.0.0.0
-	if (add_route(&net_ifaces[net_iface_count - 1], ip_address, netmask, no_hop) != NET_OK) return NET_ERROR;
-	
-	return NET_OK;
 }
 
 // Handles all housekeeping at the network level. Packet queue update filter & flush., etc.
@@ -242,6 +274,7 @@ int send_packet(uint8_t ttl, uint8_t protocol, const uint8_t *destination, const
 }
 
 int forward_packet(packet *p) {
+	if (p->ttl <= 1) return NET_ERROR;
 	p->ttl--;
 	uint8_t buf[NET_HEADER_LENGTH + NET_MTU];
 	size_t p_size = serialize_packet(p, buf, sizeof buf);

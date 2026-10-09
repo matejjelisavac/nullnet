@@ -53,9 +53,6 @@ int main(int argc, char *argv[]) {
 	int iface_count = (argc-1) / iface_args;
 	if (iface_count > ROUTER_MAX_INTERFACES) return 1;
 
-	net_interface net_interfaces[ROUTER_MAX_INTERFACES] = {0};
-	interface interfaces[ROUTER_MAX_INTERFACES] = {0}; //Required to keep the net_iface->iface pointers alive.
-
 
 	for (int i = 0; i < iface_count ; i++) {
 		uint8_t mac[LINK_MAC_LENGTH];
@@ -68,19 +65,18 @@ int main(int argc, char *argv[]) {
 		if (read_ip(ip, argv[iface_args*i+4]) != 0) return print_usage(argv[0]); 
 		if (read_ip(netmask, argv[iface_args*i+5]) != 0) return print_usage(argv[0]); //indices 5, 10, 15, etc.
 
-		if (link_init(&interfaces[i], mac, own_path, hub_path) != LINK_OK) return 1;
-		if (net_init(&net_interfaces[i], &interfaces[i], ip, netmask) != NET_OK) return 1;
+		interface *iface = link_init(mac, own_path, hub_path);
+		if (net_init(iface, ip, netmask) != NET_OK) return 1;
 	}
 
 	// Receive loop.
 	while (true) {
 		// Poll for interfaces, get packet on ready
-		size_t ready = 0;
-		if (link_await_many(interfaces, iface_count, POLL_TIMEOUT_MS, &ready) != LINK_READY) continue;
-		net_interface *incoming = &net_interfaces[ready];
-		net_tick(incoming);
+		net_interface *incoming = NULL;
+		if (net_await_all(&incoming, POLL_TIMEOUT_MS) != NET_READY) continue;
+		net_tick();
 		frame f;
-		recv_frame(&interfaces[ready], &f); // TODO no error check
+		if (recv_frame(incoming->iface, &f) != LINK_OK) continue; // dont forward if not MAC mine
 		if (f.type == LINK_TYPE_ARP) {
 			arp_handle(incoming, f.payload, f.payload_size);
 			continue;
@@ -88,30 +84,16 @@ int main(int argc, char *argv[]) {
 		packet p;
 		int res = recv_packet(incoming, &p, f.payload, f.payload_size);
 		if (res == NET_NOT_MINE) { //This packet needs to be forwarded to final IP
-			// Find the correct interface to send from with netmask
-			net_interface *outgoing = NULL;
-			for (int i = 0; i < iface_count; i++) {
-				if (ip_in_subnet(net_interfaces[i].ip_address, p.destination, net_interfaces[i].netmask)) {
-					outgoing = &net_interfaces[i];
-					break;
-				}
-			}
 
-			// If no interface we are more than one hop away, or doesnt exist. Unreachable anyway
-			// Eventually routing table will handle this better
-			if (outgoing == NULL) {
-				printf("No route to ");
+			// Send. Network will handle changing next_hop_mac, Link will handle changing src mac
+			if (forward_packet(&p) == NET_ERROR) { // TODO Better error handling
+				printf("Couldn't foward to ");
 				print_ip(p.destination);
 				printf(", dropping.\n");
 				continue;
 			}
 
-			// Send. Network will handle changing next_hop_mac, Link will handle changing src mac
-			if (p.ttl <= 1) {
-				printf("TTL expired, dropping.\n");
-				continue;
-			}
-			if (forward_packet(outgoing, &p) != NET_OK) continue; //TODO Decide how to handle errors
+			
 		}
 		if (res == NET_OK) continue; //Normal packet addressed to router.
 	}

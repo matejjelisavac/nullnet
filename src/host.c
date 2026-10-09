@@ -39,14 +39,13 @@ int main(int argc, char *argv[]) {
 	if (read_ip(destination, argv[7]) != 0) return print_usage(argv[0]);
 	
 
-	interface iface = link_init(mac, own_path, hub_path);
+	interface *iface = link_init(mac, own_path, hub_path);
 	if (iface == NULL) return 1;
-	if (net_init(&iface, ip, netmask) != NET_OK) return 1;
-	add_gateway_route()
-	// TODO add gateway
+	if (net_init(iface, ip, netmask) != NET_OK) return 1;
+	add_default_route(gateway);
 
 	int TIMEOUT_MS = 1000;
-	// Send hello to destination
+
 	uint16_t payload_size = 0x0003;
 	uint8_t payload[] = {0xAA, 0xAA, 0xAA};
 	uint16_t port = 12;
@@ -55,7 +54,7 @@ int main(int argc, char *argv[]) {
 	
 	int res = 0;
 	time_t last_send = time(NULL);
-	time_t send_again_after = 1; // in seconds
+	time_t send_again_after = 3; // in seconds
 	while (true) {
 		net_interface *ready = NULL;
 		if (net_await_all(&ready, TIMEOUT_MS) == NET_READY) handle_incoming(ready);

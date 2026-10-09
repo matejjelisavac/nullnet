@@ -88,7 +88,9 @@ bool ip_in_subnet(const uint8_t *local, const uint8_t *target, const uint8_t *ne
 
 void apply_netmask(uint8_t *result, const uint8_t *ip_address, const uint8_t *netmask);
 
-int add_route(net_interface *out_iface, const uint8_t *dest_ip, const uint8_t *dest_netmask, const uint8_t *next_hop_ip);
+int add_route(const uint8_t *dest_ip, const uint8_t *dest_netmask, const uint8_t *next_hop_ip, net_interface *out_iface);
+
+int add_default_route(const uint8_t *gateway);
 
 int net_init(interface *iface, const uint8_t *ip_address, const uint8_t *netmask);
 

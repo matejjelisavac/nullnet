@@ -1,4 +1,4 @@
-Oct 1 2026
+Oct 5 2026
 
 segment A, 2026-10-01 — host-a 10.0.1.5 <-> router <-> host-b 10.0.2.7
 
